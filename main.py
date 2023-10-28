@@ -2,6 +2,7 @@ from telegram.ext import Updater
 
 from handlers import setup_dispatcher
 from settings import TELEGRAM_TOKEN, HEROKU_APP_NAME, PORT
+import time
 
 # Setup bot handlers
 updater = Updater(TELEGRAM_TOKEN, )
@@ -30,7 +31,7 @@ while True:
             )
 
             updater.idle()
-    except exception as e:
+    except Exception as e:
         print(f"Error occurred: {e.message}. Retrying in 60 seconds.")
         time.sleep(60)
 
