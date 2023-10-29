@@ -158,10 +158,13 @@ def forward_to_user(update, context):
             from_chat_id=update.effective_message.chat_id
         )
     else:
-        # context.bot.send_message(
-        #     chat_id=TELEGRAM_SUPPORT_CHAT_ID,
-        #     text=WRONG_REPLY
-        # )
+        if REPLY_TO_THIS_MESSAGE_FOR_ALL != update.effective_message.reply_to_message.text:
+            context.bot.send_message(
+                chat_id=TELEGRAM_SUPPORT_CHAT_ID,
+                text=WRONG_REPLY
+            )
+            return
+
         recipients = []
         for user_id in users:
             try:
