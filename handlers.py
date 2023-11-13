@@ -108,7 +108,7 @@ def forward_to_chat(update, context):
         update.effective_message.reply_text(APPROVE_MESSAGE)
         return
 
-    context.bot.send_message(chat_id=TELEGRAM_SUPPORT_CHAT_ID, text=user["name"] + " " + user["tag"])
+    # context.bot.send_message(chat_id=TELEGRAM_SUPPORT_CHAT_ID, text=user["name"] + " " + user["tag"])
     forwarded = update.effective_message.forward(chat_id=TELEGRAM_SUPPORT_CHAT_ID)
 
     if not forwarded.forward_from:
