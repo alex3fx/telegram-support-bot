@@ -5,8 +5,12 @@ from settings import (WELCOME_MESSAGE, TELEGRAM_SUPPORT_CHAT_ID, REPLY_TO_THIS_M
                       GET_NAME_MESSAGE, APPROVE_MESSAGE, NAME_CHANGED_MESSAGE, WRONG_RENAME_MESSAGE,
                       CONNECTED_MESSAGE, REPLY_TO_THIS_MESSAGE_FOR_ALL)
 
-users = {}  # Простое хранилище chat_id пользователей. В реальном приложении лучше использовать БД.
+import threading
+#threading.Thread(target=lambda: every(5, foo)).start()
 
+users = {}  # Простое хранилище chat_id пользователей. В реальном приложении лучше использовать БД.
+users_current_sessions = {}  # Хранилище текущих сессий пользователей. В реальном приложении лучше использовать БД.
+delay = 120  # Задержка в секундах перед отправкой сообщений в чат.
 def users_init():
     global users
     try:
@@ -50,6 +54,13 @@ def get_user(user_id):
         return {}
     return users[str_id]
 
+def get_user_session(user_id):
+    global users_current_sessions
+    str_id = str(user_id)
+    if str_id not in users_current_sessions:
+        return {}
+    return users_current_sessions[str_id]
+
 def start(update, context):
     update.effective_message.reply_text(WELCOME_MESSAGE)
 
@@ -82,7 +93,25 @@ def rename(update, context):
     update.effective_message.reply_text(NAME_CHANGED_MESSAGE + " " + text)
     return
 
+def forward_message(message, context):
+    forwarded = message.forward(chat_id=TELEGRAM_SUPPORT_CHAT_ID)
 
+    if not forwarded.forward_from:
+        context.bot.send_message(
+            chat_id=TELEGRAM_SUPPORT_CHAT_ID,
+            reply_to_message_id=forwarded.message_id,
+            text=f'{message.from_user.id}\n{REPLY_TO_THIS_MESSAGE}'
+        )
+
+
+def postponed_send(user_id, context):
+    global users_current_sessions
+    if str(user_id) not in users_current_sessions:
+        return
+    for message in users_current_sessions[str(user_id)]:
+        forward_message(message, context)
+    users_current_sessions.pop(str(user_id), None)
+    #users_current_sessions[str(user_id)] = []
 
 def forward_to_chat(update, context):
     """{ 
@@ -92,7 +121,7 @@ def forward_to_chat(update, context):
         'text': 'TEST QOO', 'entities': [], 'caption_entities': [], 'photo': [], 'new_chat_members': [], 'new_chat_photo': [], 'delete_chat_photo': False, 'group_chat_created': False, 'supergroup_chat_created': False, 'channel_chat_created': False, 
         'from': {'id': 49820636, 'first_name': 'Daniil', 'is_bot': False, 'last_name': 'Okhlopkov', 'username': 'danokhlopkov', 'language_code': 'en'}
     }"""
-
+    global users_current_sessions
     user = get_user(update.effective_message.from_user.id)
     if  user == {}:
         add_edit_user(update.effective_message.from_user.id)
@@ -109,20 +138,46 @@ def forward_to_chat(update, context):
         return
 
     # context.bot.send_message(chat_id=TELEGRAM_SUPPORT_CHAT_ID, text=user["name"] + " " + user["tag"])
-    forwarded = update.effective_message.forward(chat_id=TELEGRAM_SUPPORT_CHAT_ID)
+    global delay
+    if delay == 0:
+        forward_message(update.effective_message, context)
+        return
 
-    if not forwarded.forward_from:
-        context.bot.send_message(
-            chat_id=TELEGRAM_SUPPORT_CHAT_ID,
-            reply_to_message_id=forwarded.message_id,
-            text=f'{update.effective_message.from_user.id}\n{REPLY_TO_THIS_MESSAGE}'
-        )
+    user_id = str(update.effective_message.from_user.id)
+    if get_user_session(update.effective_message.from_user.id) == {}:  # Если сессии нет, то создаем ее
+        users_current_sessions[user_id] = []
+        threading.Timer(delay, postponed_send, [user_id, context]).start()  # Отправляем сообщения через 2 минуты
+
+    users_current_sessions[user_id].append(update.effective_message)
+#    forwarded = update.effective_message.forward(chat_id=TELEGRAM_SUPPORT_CHAT_ID)
+
+
 
 
 def send_to_all(update, context):
     text = update.effective_message.text
     if text.startswith("/newsletter"):
         update.effective_message.reply_text(REPLY_TO_THIS_MESSAGE_FOR_ALL)
+        return
+
+    if text.startswith("/delay"):
+        args = text.split()
+        global delay
+        if len(args) == 1:
+            update.effective_message.reply_text(f"Задержка перед отправкой сообщений: {delay} секунд")
+            return
+
+        if len(args) != 2:
+            update.effective_message.reply_text("Используйте: /delay 120 (время в секундах)")
+            return
+
+        if not args[1].isdigit():
+            update.effective_message.reply_text("Используйте: /delay 120 (время в секундах)")
+            return
+
+        delay = int(args[1])
+        update.effective_message.reply_text(f"Задержка перед отправкой сообщений установлена: {delay} секунд")
+        return
 
 
 
